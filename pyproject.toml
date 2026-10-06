@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "ai-startups-taxonomy-research"
 version = "2.0.0"
-description = "Two-axis classifier for AI-native startups: 11 subclasses + RAD score. Production classification uses the OpenAI Responses API."
+description = "Two-axis classifier for AI-native startups: 10 subclasses and a RAD score. Production classification uses the OpenAI Responses API."
 requires-python = ">=3.11"
 dependencies = [
     "openai>=2.0.0",
@@ -15,7 +15,6 @@ dependencies = [
     "tenacity>=8.3.0",
     "rich>=13.7.0",
     "python-dotenv>=1.0.0",
-    "openpyxl>=3.1.0",
 ]
 
 [project.optional-dependencies]
@@ -29,6 +28,7 @@ dev = [
 # Kept out of core so the classification pipeline stays lean.
 analysis = [
     "statsmodels>=0.14.0",
+    "scipy>=1.11.0",
 ]
 
 [tool.setuptools.packages.find]

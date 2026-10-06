@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import sys
 from pathlib import Path
 
 from .crawl import (
@@ -129,11 +130,23 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Skip the ~1-credit dry call that confirms the API key and request shape work.",
     )
+    parser.add_argument(
+        "--live",
+        action="store_true",
+        help="Run the paid crawl. Without this flag the command exits 2.",
+    )
     return parser
 
 
 def main(argv: list[str] | None = None) -> None:
     args = build_parser().parse_args(argv)
+    if not args.live:
+        print(
+            "This paid command is frozen. Pass --live to spend credits. "
+            "Classify companies with: python -m two_pass_classifier",
+            file=sys.stderr,
+        )
+        raise SystemExit(2)
     config = TavilyCrawlConfig(
         limit=args.limit,
         max_depth=args.max_depth,

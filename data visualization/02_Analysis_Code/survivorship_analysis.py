@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
 """Compute the survivor-vs-dead metrics dict consumed by the alive/dead dashboard.
 
-Pure compute, mirrors the summarize -> build split used by
-summarize_death_coverage.py + build_survivorship_dashboard.py: this module owns
-the data work and returns one JSON-able dict; the builder
-(build_v1_alive_dead_dashboard.py) only renders it.
+Pure compute: this module owns the data work and returns one JSON-able dict.
+build_v1_alive_dead_dashboard.py only renders it.
 
 Evidence-only universe (locked design decision): the alive cohort is companies
 Tavily successfully scraped (non-empty live website_evidence) and the dead
