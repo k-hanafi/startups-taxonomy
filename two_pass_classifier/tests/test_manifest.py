@@ -25,9 +25,15 @@ from two_pass_classifier.paths import (
 
 
 def test_source_columns_match_existing_classifier_input_contract():
-    from single_pass_classifier.input_contract import CLASSIFIER_INPUT_COLUMNS
+    from tavily_crawler.master_csv import (
+        CLASSIFIER_INPUT_COLUMNS as CRAWLER_INPUT_COLUMNS,
+    )
+    from wayback_machine.cohort import (
+        CLASSIFIER_INPUT_COLUMNS as WAYBACK_INPUT_COLUMNS,
+    )
 
-    assert SOURCE_COLUMNS == tuple(CLASSIFIER_INPUT_COLUMNS)
+    assert list(SOURCE_COLUMNS) == list(CRAWLER_INPUT_COLUMNS)
+    assert list(SOURCE_COLUMNS) == list(WAYBACK_INPUT_COLUMNS)
 
 
 def _row(company_id: str, evidence: str, **overrides: str) -> dict[str, str]:

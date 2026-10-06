@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "ai-startups-taxonomy-research"
 version = "2.0.0"
-description = "Two-axis classifier for AI-native startups: 11 subclasses + RAD score via OpenAI Batch API"
+description = "Two-axis classifier for AI-native startups: 11 subclasses + RAD score. Production classification uses the OpenAI Responses API."
 requires-python = ">=3.11"
 dependencies = [
     "openai>=2.0.0",
@@ -34,7 +34,6 @@ analysis = [
 [tool.setuptools.packages.find]
 where = ["."]
 include = [
-    "single_pass_classifier*",
     "two_pass_classifier*",
     "tavily_crawler*",
     "evals*",
@@ -42,12 +41,10 @@ include = [
 ]
 
 [tool.setuptools.package-data]
-single_pass_classifier = ["prompts/*.txt"]
 two_pass_classifier = ["prompts/*.txt"]
 
 [tool.pytest.ini_options]
 testpaths = [
-    "single_pass_classifier/tests",
     "two_pass_classifier/tests",
     "tavily_crawler/tests",
     "evals/tests",

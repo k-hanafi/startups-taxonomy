@@ -14,7 +14,6 @@ from types import ModuleType
 from typing import Any, Mapping
 
 from pydantic import BaseModel
-from single_pass_classifier import formatter as single_pass_formatter
 
 from . import (
     cohort as cohort_module,
@@ -26,6 +25,7 @@ from . import (
 )
 from .formatter import (
     FORMATTER_VERSION,
+    MAX_USER_MESSAGE_CHARS,
     format_input_message,
     format_pass_a_message,
     format_pass_b_message,
@@ -153,7 +153,6 @@ def request_identity(settings: RequestSettings) -> dict[str, Any]:
     }
     semantic_modules = {
         "request_builder": sys.modules[__name__],
-        "single_pass_formatter": single_pass_formatter,
         "two_pass_formatter": formatter_module,
         "cohort": cohort_module,
         "schema": schema_module,
@@ -186,9 +185,7 @@ def request_identity(settings: RequestSettings) -> dict[str, Any]:
         },
         "runtime_constants": {
             "formatter_version": FORMATTER_VERSION,
-            "max_user_message_chars": (
-                single_pass_formatter.MAX_USER_MESSAGE_CHARS
-            ),
+            "max_user_message_chars": MAX_USER_MESSAGE_CHARS,
             "cohort_boundary": {
                 "year": cohort_module.COHORT_BOUNDARY_YEAR,
                 "month": cohort_module.COHORT_BOUNDARY_MONTH,

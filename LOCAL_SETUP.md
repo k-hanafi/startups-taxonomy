@@ -57,40 +57,39 @@ echo 'TAVILY_API_KEY=your_tavily_key_here' > keys/tavily.env
 ### 4. Verify Setup
 
 ```bash
-# Run tests to verify everything works (no data files required)
-OPENAI_API_KEY=placeholder pytest
-OPENAI_API_KEY=placeholder PYTHONPATH=. pytest wayback_machine/tests
+# Run tests to verify everything works (no data files or API key required)
+pytest
+PYTHONPATH=. pytest wayback_machine/tests
 
-# Optional: cost estimate once classifier input exists locally
-# OPENAI_API_KEY=placeholder python -m single_pass_classifier prepare --dry-run
-# (requires outputs/tavilycrawl/processed/classifier_input.csv from a completed crawl)
+# Optional: offline cost estimate once a production manifest exists locally
+# python -m two_pass_classifier cost-preview
 ```
 
 ## Working with the Repository
 
 ### Understanding the Data Flow
 
-The repository has three strands, all feeding the same classifier:
+The repository has one production classifier and three evidence strands.
+
+`python -m two_pass_classifier` is the production classifier. The landed live file was written by a retired batch classifier. Historical and dead-company classify commands exit 2.
 
 1. **Live strand** (DONE): Classifies companies based on current websites
-2. **Historical strand** (FROZEN): Re-classifies using March 2023 Internet Archive snapshots (infra built, paid extract not run)
-3. **Survivorship strand** (FROZEN): Dead-cohort extract is complete; classify/merge not landed in this snapshot
+2. **Historical strand** (FROZEN): March 2023 Internet Archive snapshots (infra built, paid extract not run)
+3. **Survivorship strand** (FROZEN): Dead-cohort extract is complete; merge not landed in this snapshot
 
 **Current focus:** Local setup only. The research snapshot on `main` is frozen.
 
 ### Key Commands
 
 ```bash
-# Run live pipeline tests
+# Tests. No API key is required to collect or run them.
 pytest
 
-# Run wayback machine tests
-pytest wayback_machine/tests
-
-# Classification pipeline (requires real API key)
-python -m single_pass_classifier prepare --dry-run  # Cost estimate
-python -m single_pass_classifier run                # Full run
-python -m single_pass_classifier status             # Check progress
+# Production classifier. These commands make no API calls.
+# Default inputs are local files and are not in git.
+python -m two_pass_classifier build-manifest
+python -m two_pass_classifier cost-preview
+python -m two_pass_classifier status <run_id>
 
 # Live website enrichment
 python -m tavily_crawler liveness
@@ -106,12 +105,10 @@ python wayback_machine/scripts/run_extract_dead.py
 
 ```
 /
-├── single_pass_classifier/ # Live V1 classifier application
-├── two_pass_classifier/ # Production V2 classifier and contract owner
+├── two_pass_classifier/ # Production classifier
 ├── tavily_crawler/       # Live liveness and crawl application
-├── evals/                # Golden-set research harness over production V2
+├── evals/                # Golden-set research harness over the production classifier
 ├── wayback_machine/      # Historical + survivorship strands
-├── scripts/              # Supporting utilities
 ├── data/                 # Input data (git-ignored, not indexed)
 ├── outputs/              # Generated results (git-ignored)
 ├── keys/                 # API keys (git-ignored)
@@ -265,7 +262,7 @@ git fetch origin
 
 - Read `AGENTS.md` for project architecture and data flow
 - Read `wayback_machine/README.md` for survivorship pipeline details
-- Run commands with `--help`: `python -m single_pass_classifier --help`
+- Run commands with `--help`: `python -m two_pass_classifier --help`
 - Check package test folders for usage examples
 
 ## Next Steps
@@ -274,10 +271,10 @@ After setup:
 
 1. Read `AGENTS.md` thoroughly
 2. Run `pytest` to verify everything works
-3. Explore the V1 app from `single_pass_classifier/cli.py`
+3. Read `two_pass_classifier/README.md` for the production command order
 4. Check what the cloud agent has been working on: `git log --oneline -20`
 5. Review current branch status: `git status`
 
 ---
 
-**Remember:** This repository has three strands (live, historical, survivorship) that all feed the same classifier. The only thing that differs is the `website_evidence`. Keep this invariant when making changes.
+**Remember:** Live, historical, and survivorship strands differ by `website_evidence`. The production classifier is `python -m two_pass_classifier`. The batch classifier that wrote the original live file was removed.

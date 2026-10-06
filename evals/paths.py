@@ -1,9 +1,8 @@
 """Filesystem paths for the eval harness.
 
 Input artifacts (production predictions + classifier input) are referenced
-by literal path rather than imported from the single-pass paths module: its config
-transitively would require OPENAI_API_KEY at import time, which offline
-stages (sampling, scoring) must not need.
+by literal path. Offline stages (sampling, scoring) must stay importable
+with ``OPENAI_API_KEY`` unset.
 """
 
 from __future__ import annotations

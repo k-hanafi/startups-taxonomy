@@ -9,7 +9,7 @@ import math
 
 import pytest
 
-from single_pass_classifier.formatter import (
+from two_pass_classifier.formatter import (
     MAX_USER_MESSAGE_CHARS,
     _clean,
     _extract_year,

@@ -30,8 +30,8 @@ MASTER_CSV_COLUMNS = [
     "website_alive",
 ]
 
-# What the single-pass classifier consumes. The 2023 output must have these
-# columns, in order, so the existing classifier runs on it unchanged.
+# Classifier input columns. The 2023 output must keep this order. Only
+# website_evidence differs across evidence strands.
 CLASSIFIER_INPUT_COLUMNS = MASTER_CSV_COLUMNS + [
     "website_pages_used",
     "website_evidence",

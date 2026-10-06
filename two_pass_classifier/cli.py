@@ -6,18 +6,17 @@ import argparse
 import asyncio
 import inspect
 import json
-import os
 import sys
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
-from dotenv import dotenv_values
 from rich.console import Console
 from rich.panel import Panel
 from rich.prompt import Confirm
 from rich.table import Table
 
 from . import config
+from .api_key import MissingAPIKeyError, load_real_api_key
 from .costing import CostPreview, estimate_manifest_cost
 from .journal import (
     JournalCorruptionError,
@@ -882,21 +881,10 @@ def _make_paid_client(client_factory: ClientFactory | None) -> Any:
 
 
 def _load_real_api_key() -> str:
-    key = (os.environ.get("OPENAI_API_KEY") or "").strip()
-    if not key:
-        env_path = PROJECT_ROOT / "keys" / "openai.env"
-        if env_path.is_file():
-            key = str(dotenv_values(env_path).get("OPENAI_API_KEY") or "").strip()
-    if not key:
-        raise CLIError(
-            "OPENAI_API_KEY is missing. Set it in your environment or in "
-            f"{PROJECT_ROOT / 'keys' / 'openai.env'} before a paid command"
-        )
-    if key.lower() in {"placeholder", "test", "your_openai_key_here"}:
-        raise CLIError(
-            "OPENAI_API_KEY is a placeholder. Provide a real key before a paid command"
-        )
-    return key
+    try:
+        return load_real_api_key()
+    except MissingAPIKeyError as exc:
+        raise CLIError(str(exc)) from exc
 
 
 def _confirm_paid(console: Console, *, yes: bool, action: str) -> bool:

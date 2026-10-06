@@ -415,8 +415,7 @@ def test_valid_bank_is_reused_for_pass_b_only(
     model = "gpt-5.4-nano"
     bank_id = _write_valid_bank(tmp_path, monkeypatch, model=model)
     monkeypatch.setattr(classification, "load_golden_rows", _golden_row)
-    monkeypatch.setattr(classification, "OPENAI_API_KEY", "placeholder")
-    monkeypatch.setattr(classification, "OpenAI", lambda api_key: object())
+    monkeypatch.setattr(classification, "_openai_client", lambda: object())
     calls: list[dict] = []
 
     def fake_create(client, kwargs):

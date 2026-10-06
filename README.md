@@ -55,7 +55,7 @@ flowchart TD
         D --> E[Join with Crunchbase fields]
     end
     subgraph classification [Classification]
-        E -->|classifier input| F[GPT-5 via OpenAI Batch API]
+        E -->|classifier input| F[Two-pass classifier via OpenAI Responses API]
         F -->|structured JSON| G[Pydantic structured output]
         G -->|validated rows| H[("Production dataset")]
     end
@@ -73,21 +73,21 @@ flowchart TD
 ### Cost optimization
 
 - **Live-website filter before any paid Tavily API web crawler call.** 
-- **Budget prediction and capping.** Both halves of the pipeline forecast spend before any token is purchased. The Tavily crawler is given a target credit budget up front and stops cleanly at the cap. The OpenAI classifier counts tokens with tiktoken and prints projected cost before submitting.
+- **Budget prediction and capping.** Both halves of the pipeline forecast spend before any token is purchased. The Tavily crawler is given a target credit budget up front and stops cleanly at the cap. The production classifier counts tokens offline and prints a cost range before a paid run.
 - **Prompt caching.** The system prompt is stable by design across every one of the 270k requests, so OpenAI's prompt cache discounts the bulk of input tokens automatically.
 
 ### LLM integration
 
 - **System prompt as a first-class artifact.** A single source-controlled system prompt defines the two-axis taxonomy, the evidence hierarchy, the RAD assignment rules, and a worked few-shot example for every subclass.
 - **Web crawl post-processing into LLM-ready evidence.** Markdown returned from each crawl is stripped of navigation chrome, cookie banners, image lines, and duplicate menu items, then packed signal-first into a fixed character budget so the model sees only the highest-signal evidence per company.
-- **Structured output via Pydantic.** Every classification returns the same eleven typed fields, with schema-violating responses rejected at parse time, so the merged CSV loads straight into pandas with no defensive cleaning.
-- **Confidence scoring on every output.** Each classification reports a separate 1-5 confidence score for the subclass call and the RAD call, so downstream analysis can filter to high-confidence rows or audit ambiguous ones directly.
-- **LLM self-critique** for each classification to flag borderline and low-confidence  classifications.
+- **Structured output via Pydantic.** Each pass returns a strict schema. Schema-violating responses are rejected at parse time.
+- **Confidence from sampled tokens.** Pass A records logprobs on the binary decision so later analysis can filter uncertain rows.
+- **LLM self-critique** on each pass flags borderline calls.
 
 ### Pipeline scale and robustness
 
-- **Rate limiting tuned to OpenAI's queue ceiling.** The submitter respects OpenAI's batch-queue token cap and only puts another batch in flight when there is real headroom, instead of guessing a concurrency number that fails halfway through.
-- **Surgical retries.** Failed rows from any batch are pulled out by id and re-submitted as a fresh, properly sized batch, instead of re-running the whole job.
-- **Live status polling.** All in-flight batches are polled in parallel on a fixed interval and rendered into a live status table, so a multi-hour OpenAI batch processing run is observable in real time.
-- **Resumable end-to-end.** Every stage (prepare, submit, monitor, download, merge, retry) reads a checkpoint and skips completed work. A 270k-row classification run can be paused, resumed, or partially re-run without losing progress.
+- **Rate limits on the live Responses API.** The runner admits requests under both requests-per-minute and tokens-per-minute caps.
+- **Retries that keep finished companies.** A failed company can be retried without redoing rows that already completed.
+- **Offline status.** Progress is read from the run journal, so a long classification can be inspected without another API call.
+- **Resumable runs.** The journal is the resume authority. A full run requires a successful 10-company smoke with the same request fingerprint. The original live file was produced by a retired batch classifier. That package is gone.
 
