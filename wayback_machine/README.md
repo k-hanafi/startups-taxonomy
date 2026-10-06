@@ -39,36 +39,20 @@ wayback_machine/
   outputs/           # generated       (git-ignored)
 ```
 
-## Run order
+## Commands
 
-All commands run from the project root. Stages C and the recovery probe touch the
-network and must run **outside the Cursor sandbox**.
+Run these from the project root. Paid extract commands exit 2 unless you pass `--live`.
 
-| Stage | Command | Cost |
-|-------|---------|------|
-| A. Discover (done) | `scripts/probe_coverage.py` → `scripts/summarize_coverage.py` | free |
-| B. Freeze targets | `python3 wayback_machine/scripts/build_targets.py` | free |
+| Command | What it does |
+|---------|----------------|
+| `python3 wayback_machine/scripts/build_targets.py` | Freeze the March-2023 company list. |
+| `python3 wayback_machine/scripts/spike_extract.py --live --n 50` | Try a small paid sample. |
+| `python3 wayback_machine/scripts/run_extract.py --live` | Pull archive pages for that list. |
+| `python3 wayback_machine/scripts/build_classifier_input_2023.py` | Join archive text to company metadata. |
+| `python3 wayback_machine/scripts/run_extract_dead.py --live` | Pull a pre-death page for companies the live crawl missed. |
+| `python3 wayback_machine/scripts/build_classifier_input_dead.py` | Join that recovered text to company metadata. |
 
-Stage B keeps a company only if it is **both** retrievable **and** existed at
-GPT-4 launch (`founded_date` ≤ `2023-03`, override with `--founded-cutoff`). The
-existence filter is not redundant: the probe picks the capture closest to March
-14 within Dec 2022 – Jun 2023, so a company founded mid-2023 could otherwise slip
-in via a later snapshot.
-| Spike (de-risk) | `python3 wayback_machine/scripts/spike_extract.py --n 50` | ~10 credits |
-| C. Extract | `python3 wayback_machine/scripts/run_extract.py` | paid |
-| D. Build input | `python3 wayback_machine/scripts/build_classifier_input_2023.py` | free |
-| E. Classify | `python -m wayback_machine.classify_2023` | exits 2 |
-
-Stage E does not classify. Historical classification ran on the retired batch
-classifier. Production classification is `python -m two_pass_classifier`.
-`python wayback_machine/scripts/classify_dead.py` also exits 2. Do not resume
-the paid extract without a new brief.
-
-For the overnight extract, hold sleep with caffeinate (outside the sandbox):
-
-```bash
-caffeinate -ims python3 wayback_machine/scripts/run_extract.py
-```
+`python -m wayback_machine.classify_2023` and `python wayback_machine/scripts/classify_dead.py` exit 2. Score the resulting CSV with `python -m two_pass_classifier`.
 
 ## Resumability & safety
 

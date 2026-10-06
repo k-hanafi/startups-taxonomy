@@ -33,6 +33,7 @@ from wayback_machine.extract_dead import (  # noqa: E402
     DEFAULT_EXTRACT_DEAD_CONCURRENCY,
     run_extract_dead,
 )
+from wayback_machine.live_gate import add_live_flag, require_live  # noqa: E402
 from wayback_machine.paths import (  # noqa: E402
     CRAWL_DEAD_JSONL,
     CRAWL_STATE_DEAD_JSON,
@@ -41,8 +42,9 @@ from wayback_machine.paths import (  # noqa: E402
 )
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description=__doc__)
+    add_live_flag(parser)
     parser.add_argument("--targets", type=Path, default=SCRAPE_TARGETS_DEAD_CSV)
     parser.add_argument("--max-companies", type=int, default=None,
                         help="Cap rows this run (smoke test / incremental).")
@@ -59,7 +61,8 @@ def main() -> None:
     parser.add_argument("--output-jsonl", type=Path, default=CRAWL_DEAD_JSONL)
     parser.add_argument("--processed", type=Path, default=SCRAPE_PROCESSED_DEAD_CSV)
     parser.add_argument("--state", type=Path, default=CRAWL_STATE_DEAD_JSON)
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
+    require_live(args.live)
 
     if args.extract_depth == "advanced":
         print(

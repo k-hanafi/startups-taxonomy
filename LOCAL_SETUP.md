@@ -14,8 +14,8 @@ This guide helps you set up this repository on your local machine to work alongs
 
 ```bash
 # If you haven't cloned yet:
-git clone https://github.com/k-hanafi/ai-startups-taxonomy-research.git
-cd ai-startups-taxonomy-research
+git clone https://github.com/k-hanafi/startups-taxonomy.git
+cd startups-taxonomy
 
 # Start on main (default branch)
 git checkout main
@@ -242,7 +242,7 @@ cat .gitignore
 git remote -v
 
 # If no remote, add it
-git remote add origin https://github.com/k-hanafi/ai-startups-taxonomy-research.git
+git remote add origin https://github.com/k-hanafi/startups-taxonomy.git
 
 # Fetch all branches
 git fetch origin

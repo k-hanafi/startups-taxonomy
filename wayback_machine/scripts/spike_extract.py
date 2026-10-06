@@ -29,18 +29,21 @@ from wayback_machine.extract import (  # noqa: E402
     _has_usable_results,
     call_tavily_extract,
 )
+from wayback_machine.live_gate import add_live_flag, require_live  # noqa: E402
 from wayback_machine.paths import SCRAPE_TARGETS_CSV, SPIKE_JSONL  # noqa: E402
 
 csv.field_size_limit(1_000_000_000)
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description=__doc__)
+    add_live_flag(parser)
     parser.add_argument("--targets", type=Path, default=SCRAPE_TARGETS_CSV)
     parser.add_argument("--n", type=int, default=50, help="Companies to sample.")
     parser.add_argument("--output", type=Path, default=SPIKE_JSONL)
     parser.add_argument("--extract-depth", default="basic", choices=["basic", "advanced"])
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
+    require_live(args.live)
 
     if not args.targets.exists():
         raise SystemExit(f"Targets not found: {args.targets}. Run build_targets.py first.")

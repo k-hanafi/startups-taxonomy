@@ -6,7 +6,7 @@ replaces an exhaustive codebase search. It is auto-injected into every chat.
 If you change the repo's structure, architecture, data flow, commands, or
 status, **update this file in the same change**. See [Maintaining this file](#maintaining-this-file).
 
-Last updated: 2026-10-06 | Active branch: `cursor/standalone-two-pass-9aae` (production classifier is two-pass only; do not resume paid strands)
+Last updated: 2026-10-06 | Active branch: `cursor/portfolio-entry-points-9aae` (README is a command glossary; paid crawl and extract need `--live`)
 
 ---
 
@@ -173,7 +173,7 @@ that wrote `outputs/production_csvs/production_classifications.csv` was removed.
 | `build_not_found_cohort.py` | **(survivorship)** Build `not_found_cohort.csv` from empty-evidence rows |
 | `probe_death_coverage.py` | **(survivorship, active)** Death-anchored CDX probe → `death_coverage.csv` |
 | `run_probe_recovery.sh` | Shell helper to resume the recovery probe |
-| `summarize_death_coverage.py` | **(survivorship)** Aggregate `death_coverage.csv` → compact JSON shared by the findings canvas + `build_survivorship_dashboard.py` |
+| `summarize_death_coverage.py` | **(survivorship)** Aggregate `death_coverage.csv` into compact JSON |
 | `build_targets_dead.py` | **(survivorship)** CLI for `targets_dead.py` |
 | `run_extract_dead.py` | **(survivorship, paid)** CLI for the dead-cohort extract engine (`extract_dead.run_extract_dead`); wrap in `caffeinate -ims` outside the sandbox |
 | `build_classifier_input_dead.py` | **(survivorship)** CLI: dead evidence → `classifier_input_dead.csv` |
@@ -301,6 +301,7 @@ python -m evals score <run_id> --confidence-from-raw --allow-missing-confidence 
 - **`wayback_machine/evidence.py` must stay behavior-identical** to `tavily_crawler/website_evidence.py`. If you change the live cleaner, re-vendor and run `pytest wayback_machine/tests`.
 - **Only `website_evidence` may differ** between strands fed to the classifier — that's the whole fair-comparison design.
 - **Historical and dead-company classify commands exit 2.** They do not classify. Production classification is `python -m two_pass_classifier`. Do not resume paid crawl or extract.
+- **Paid crawl and archive extract exit 2 unless `--live` is passed.** `python -m tavily_crawler crawl`, `run_extract.py`, `run_extract_dead.py`, and `spike_extract.py` spend Tavily credits only with that flag. `build-manifest --live` is a CSV path, not this gate.
 - **Network/paid stages run OUTSIDE the Cursor sandbox** (Tavily crawl/extract, CDX probes, OpenAI). Wrap long runs in `caffeinate -ims` and/or `tmux`.
 - **CDX is hard-capped at 60 req/min per IP**; exceeding it risks a 1-hour IP ban. Pace via `cdx.py`'s shared limiter; never raise rpm above ~58.
 - `data/`, `outputs/`, `keys/` are git-ignored; `data/` & `outputs/` are also not indexed.
