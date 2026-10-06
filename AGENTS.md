@@ -105,7 +105,7 @@ that wrote `outputs/production_csvs/production_classifications.csv` was removed.
 |------|---------|
 | `tavily_crawler/` | Live liveness and Tavily crawl application and `python -m tavily_crawler` CLI |
 | `two_pass_classifier/` | Production V2 application: immutable manifest, offline cost preview, 10-row smoke gate, async Responses runner, status/resume/retry, confidence, professor exporter |
-| `README.md` | Public-facing writeup (taxonomy + pipeline narrative + mermaid diagrams) |
+| `README.md` | Removed. The public page will be rewritten in a later change. |
 | `LOCAL_SETUP.md` | Local clone, venv, keys, and pytest |
 | `pyproject.toml` | Dependencies + pytest config |
 | `AGENTS.md` | This file |
