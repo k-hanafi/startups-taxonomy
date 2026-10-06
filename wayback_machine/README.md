@@ -2,14 +2,14 @@
 
 Reconstruct the **March-2023 (GPT-4 launch) homepages** of our classified
 startups from the Internet Archive, clean them the exact same way the live crawl
-did, and emit a `classifier_input_2023.csv` that drops straight into the existing
-classifier. Running the unchanged classifier on it lets us diff today vs 2023 and
-measure how startup AI messaging shifted.
+did, and emit a `classifier_input_2023.csv`. Only `website_evidence` should
+differ from the live input. Production classification is
+`python -m two_pass_classifier`. `classify_2023.py` exits 2. The batch
+classifier that used to score this file was removed.
 
 The evidence-recovery stages are a **self-contained sub-project**. Their cleaner
-is vendored in `evidence.py` and guarded by a golden test. The only intentional
-bridge to a root application is `classify_2023.py`, which binds an isolated
-namespace before importing the unchanged V1 classifier.
+is vendored in `evidence.py` and guarded by a golden test. Do not merge that
+copy with the live cleaner.
 
 ## Why Tavily `/extract` (not a raw HTML download)?
 
@@ -32,7 +32,7 @@ wayback_machine/
   extract.py         # the resumable Tavily /extract engine
   targets.py         # Stage B: coverage_full.csv -> scrape_targets.csv
   classifier_input.py# Stage D: master + 2023 evidence -> classifier_input_2023.csv
-  classify_2023.py   # Stage E: namespaced bridge to the unchanged V1 classifier
+  classify_2023.py   # exits 2; the batch classifier was removed
   scripts/           # thin argparse CLIs (run these)
   tests/             # golden cleaner + cohort helpers
   data/              # frozen inputs   (git-ignored)
@@ -57,11 +57,12 @@ in via a later snapshot.
 | Spike (de-risk) | `python3 wayback_machine/scripts/spike_extract.py --n 50` | ~10 credits |
 | C. Extract | `python3 wayback_machine/scripts/run_extract.py` | paid |
 | D. Build input | `python3 wayback_machine/scripts/build_classifier_input_2023.py` | free |
-| E. Classify | `python -m wayback_machine.classify_2023 run` | paid |
+| E. Classify | `python -m wayback_machine.classify_2023` | exits 2 |
 
-The Stage E wrapper sets `CLASSIFY_NS=wayback_2023` before any classifier
-imports. Its state and final CSV therefore stay under `outputs/wayback_2023/`
-and cannot overwrite the live V1 artifacts.
+Stage E does not classify. Historical classification ran on the retired batch
+classifier. Production classification is `python -m two_pass_classifier`.
+`python wayback_machine/scripts/classify_dead.py` also exits 2. Do not resume
+the paid extract without a new brief.
 
 For the overnight extract, hold sleep with caffeinate (outside the sandbox):
 

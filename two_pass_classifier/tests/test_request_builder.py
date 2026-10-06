@@ -134,7 +134,7 @@ def test_formatter_helper_source_drift_changes_full_and_pass_a_fingerprints(
 
     def drifted(module):
         source = original(module)
-        if module.__name__ == "single_pass_classifier.formatter":
+        if module.__name__ == "two_pass_classifier.formatter":
             return source + b"\n# helper-only semantic drift\n"
         return source
 

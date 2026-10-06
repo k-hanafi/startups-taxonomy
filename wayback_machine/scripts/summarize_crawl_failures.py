@@ -8,9 +8,8 @@ problems (``rate_limited`` / ``transient_error`` / ``network_error`` — a resum
 will re-attempt these) from a permanent property of the company
 (``no_archive_content`` — the Archive genuinely has nothing usable).
 
-Deliberately imports neither ``src`` (which requires ``OPENAI_API_KEY`` at import)
-nor the crawl engine — only the src-free ``wayback_machine.paths`` for the default
-JSONL location.
+Deliberately imports neither the crawl engine nor any paid client. It uses
+``wayback_machine.paths`` for the default JSONL location.
 
 Usage:
 

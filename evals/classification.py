@@ -36,9 +36,8 @@ from typing import Any, Optional
 
 from openai import OpenAI
 
-from single_pass_classifier.config import OPENAI_API_KEY
-from single_pass_classifier.formatter import build_custom_id
 from two_pass_classifier import config as production_config
+from two_pass_classifier.formatter import build_custom_id
 from two_pass_classifier.cohort import compute_cohort
 from two_pass_classifier.confidence import (
     BinaryConfidenceUnavailable,
@@ -78,6 +77,14 @@ from evals.runner import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _openai_client() -> OpenAI:
+    """Open a paid client. Key lookup happens here, not at import time."""
+    from two_pass_classifier.api_key import load_real_api_key
+
+    return OpenAI(api_key=load_real_api_key())
+
 
 BinaryResult = PassAResult
 SubclassResultAI = PassBAINativeResult
@@ -759,7 +766,7 @@ def run_classification(model: str = cfg.DEFAULT_MODEL,
     if done:
         logger.info("Resuming %s: %d rows already complete", run_id, len(done))
 
-    client = OpenAI(api_key=OPENAI_API_KEY)
+    client = _openai_client()
     todo = [r for r in rows if build_custom_id(r["org_uuid"]) not in done]
     if bank is not None:
         logger.info(
@@ -908,7 +915,7 @@ def bank_pass_a(
         )
         return bank_id
 
-    client = OpenAI(api_key=OPENAI_API_KEY)
+    client = _openai_client()
     logger.info(
         "Banking Pass A to %s: %d rows remaining (%s)",
         bank_id, len(todo), model,

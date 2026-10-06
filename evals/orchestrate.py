@@ -12,7 +12,6 @@ from __future__ import annotations
 import datetime as _dt
 import json
 import logging
-import os
 import subprocess
 import sys
 import time
@@ -84,24 +83,23 @@ class Job:
 
 
 def require_openai_key() -> None:
-    """Refuse with a plain-English message if the API key is missing/placeholder.
+    """Refuse with a plain-English message if the API key is missing or a placeholder.
 
-    The single-pass config already loads ``keys/openai.env``; this only preflights so
-    beginners see a clear fix instead of a KeyError traceback.
+    Uses the same env-or-``keys/openai.env`` check as production paid commands.
     """
-    from dotenv import load_dotenv
+    from two_pass_classifier.api_key import MissingAPIKeyError, load_real_api_key
 
-    env_file = PROJECT_ROOT / "keys" / "openai.env"
-    load_dotenv(env_file)
-    key = os.environ.get("OPENAI_API_KEY")
-    if not key or key.strip() in {"", "placeholder"}:
+    try:
+        load_real_api_key(PROJECT_ROOT)
+    except MissingAPIKeyError as exc:
+        env_file = PROJECT_ROOT / "keys" / "openai.env"
         raise SystemExit(
-            "OPENAI_API_KEY is missing or set to 'placeholder'.\n"
+            f"{exc}\n"
             f"  1. Create {env_file} (git ignores this file).\n"
             "  2. Put one line in it: OPENAI_API_KEY=sk-...\n"
             "  3. Re-run: python -m evals run-evals\n"
-            "No need to export the key in your shell; the harness loads the file."
-        )
+            "No need to export the key in your shell. The harness loads the file."
+        ) from exc
 
 
 def open_dashboard_index() -> Path:

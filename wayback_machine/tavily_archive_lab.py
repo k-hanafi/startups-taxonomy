@@ -12,18 +12,17 @@ The flow for one dead company:
         -> the modern TavilyCrawlConfig + crawl call   # 5 pages, depth 2, same instructions
         -> rewrite each archived page URL back to its origin
         -> compact_tavily_response()                   # same cleaner the live cohort used
-        -> format_user_message() + flex classifier     # same prompt + schema
-        -> contrast against the stored production verdict (metadata-only)
+        -> format_user_message()                       # production user-message text
 
-Heavy / key-requiring imports (the OpenAI classifier stack, the extract endpoint)
-are deferred into the methods that need them, so ``import`` and ``candidates()``
-work offline with no API keys present.
+Heavy imports (the extract endpoint) are deferred into the methods that need
+them, so ``import`` and ``candidates()`` work offline with no API keys present.
+This lab no longer classifies. Production classification is
+``python -m two_pass_classifier``.
 """
 
 from __future__ import annotations
 
 import hashlib
-import json
 import os
 import re
 import sys
@@ -306,7 +305,7 @@ class ScrapeResult:
     evidence: str
     diagnostics: dict[str, Any]
     classifier_input: str
-    verdict: dict[str, Any] | None      # with-evidence flex classification
+    verdict: dict[str, Any] | None      # always None; classification left this lab
     baseline: dict[str, Any] | None     # stored metadata-only production verdict
     fallback_used: bool
     error: str | None = None
@@ -428,15 +427,23 @@ class ArchiveLab:
         limit: int | None = None,
         max_depth: int | None = None,
         instructions: str | None = None,
-        classify: bool = True,
+        classify: bool = False,
         force: bool = False,
     ) -> ScrapeResult:
-        """Run Tavily on company ``i``'s pre-death snapshot, then classify + contrast.
+        """Run Tavily on company ``i``'s pre-death snapshot and clean the evidence.
+
+        ``classify=True`` is refused. The batch classifier that used to score
+        this evidence has been removed.
 
         ``method="crawl"`` runs the exact modern multi-page crawl (default ``if_``,
         scoped to the company). ``method="extract"`` runs the single-page PIVOT
         alternative (default ``id_``). Results are cached per (company, config).
         """
+        if classify:
+            raise RuntimeError(
+                "Historical classification ran on the retired batch classifier. "
+                "Production classification is python -m two_pass_classifier."
+            )
         company = self.inspect(i)
         modifier = modifier or ("id_" if method == "extract" else "if_")
         key = self._cache_key(company.org_uuid, method, modifier, scope, limit, max_depth, instructions, classify)
@@ -468,11 +475,6 @@ class ArchiveLab:
         if error is None:
             pages_used, evidence = clean_evidence(response)
             classifier_input = self._format_input(company.org_uuid, pages_used, evidence)
-            if classify and evidence:
-                try:
-                    verdict = self._classify(classifier_input)
-                except Exception as exc:  # noqa: BLE001 — paid Tavily step already succeeded
-                    error = f"Classifier: {type(exc).__name__}: {exc}"
 
         result = ScrapeResult(
             company=company,
@@ -591,53 +593,15 @@ class ArchiveLab:
         }]
         return call_tavily_extract(start_url, cfg, _api_key()), requests
 
-    # -- classifier (mirrors the single-pass `test` command, flex tier) -----
-
     def _format_input(self, org_uuid: str, pages_used: str, evidence: str) -> str:
-        from single_pass_classifier.formatter import format_user_message
+        from two_pass_classifier.formatter import format_user_message
 
-        row = {**self._metadata(org_uuid), "website_pages_used": pages_used, "website_evidence": evidence}
+        row = {
+            **self._metadata(org_uuid),
+            "website_pages_used": pages_used,
+            "website_evidence": evidence,
+        }
         return format_user_message(row)
-
-    def _classify(self, user_msg: str) -> dict[str, Any]:
-        from tenacity import retry, stop_after_attempt, wait_fixed
-
-        from single_pass_classifier.builder import (
-            _openai_strict_schema,
-            load_system_prompt,
-            responses_text_format_json_schema,
-        )
-        from single_pass_classifier.config import (
-            DEFAULT_MODEL,
-            MAX_OUTPUT_TOKENS,
-            PROMPT_CACHE_KEY,
-        )
-        from single_pass_classifier.schema import ClassificationResult
-        from single_pass_classifier.submitter import get_client
-
-        client = get_client()
-        system_prompt = load_system_prompt()
-        schema = _openai_strict_schema()
-
-        @retry(stop=stop_after_attempt(2), wait=wait_fixed(2), reraise=True)
-        def _call(tier: str) -> dict[str, Any]:
-            response = client.responses.create(
-                model=DEFAULT_MODEL,
-                instructions=system_prompt,
-                input=user_msg,
-                prompt_cache_key=PROMPT_CACHE_KEY,
-                max_output_tokens=MAX_OUTPUT_TOKENS,
-                store=False,
-                text=responses_text_format_json_schema(schema),
-                service_tier=tier,
-            )
-            return json.loads(response.output_text)
-
-        try:
-            result = _call("flex")
-        except Exception:  # noqa: BLE001 — flex can be unavailable; auto is the documented fallback
-            result = _call("auto")
-        return ClassificationResult.model_validate(result).model_dump()
 
     def baseline_verdict(self, org_uuid: str) -> dict[str, Any] | None:
         """The company's existing row in production_classifications.csv (metadata-only)."""

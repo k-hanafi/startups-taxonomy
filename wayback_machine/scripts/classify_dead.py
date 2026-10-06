@@ -1,42 +1,25 @@
 #!/usr/bin/env python3
-"""Stage E CLI (survivorship): run the UNCHANGED classifier in an isolated workspace.
+"""Dead-company classification entrypoint.
 
-Sets ``CLASSIFY_NS=wayback_dead`` BEFORE importing the classifier, which reroutes
-all batch state + the output CSV under ``outputs/wayback_dead/`` (see
-``single_pass_classifier/paths.py``). The finished modern run under
-``outputs/batch_data`` and
-``outputs/production_csvs`` is therefore physically untouchable from here.
-
-Every single-pass subcommand works through this wrapper with the same model, prompt,
-and schema as the live cohort. Only the input evidence differs:
-
-    python wayback_machine/scripts/classify_dead.py run \\
-        --data wayback_machine/outputs/processed/classifier_input_dead.csv
+The survivorship batch run used a classifier that has been removed. This
+command exits 2. Production classification is ``python -m two_pass_classifier``.
 """
 
 from __future__ import annotations
 
-import os
 import sys
-from pathlib import Path
 
-# Bind the namespace before the classifier package imports its path constants.
-os.environ.setdefault("CLASSIFY_NS", "wayback_dead")
-
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(PROJECT_ROOT))
-
-DEFAULT_DEAD_INPUT = (
-    PROJECT_ROOT / "wayback_machine" / "outputs" / "processed" / "classifier_input_dead.csv"
+RETIRED_MESSAGE = (
+    "Historical classification ran on the retired batch classifier. "
+    "Production classification is python -m two_pass_classifier."
 )
 
-from single_pass_classifier.cli import main  # noqa: E402
 
-_DATA_COMMANDS = frozenset({"prepare", "submit", "retry", "test", "run"})
+def main() -> None:
+    """Exit 2. There is no batch runner left to classify dead-company evidence."""
+    print(RETIRED_MESSAGE, file=sys.stderr)
+    raise SystemExit(2)
+
 
 if __name__ == "__main__":
-    subcommand = sys.argv[1] if len(sys.argv) > 1 else None
-    if subcommand in _DATA_COMMANDS and "--data" not in sys.argv:
-        sys.argv.insert(2, str(DEFAULT_DEAD_INPUT))
-        sys.argv.insert(2, "--data")
     main()

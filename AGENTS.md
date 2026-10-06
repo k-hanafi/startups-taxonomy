@@ -6,7 +6,7 @@ replaces an exhaustive codebase search. It is auto-injected into every chat.
 If you change the repo's structure, architecture, data flow, commands, or
 status, **update this file in the same change**. See [Maintaining this file](#maintaining-this-file).
 
-Last updated: 2026-08-30 | Active branch: `chore/clean-my-repo` (portfolio cleanup; do not resume paid strands)
+Last updated: 2026-10-06 | Active branch: `cursor/standalone-two-pass-9aae` (production classifier is two-pass only; do not resume paid strands)
 
 ---
 
@@ -20,22 +20,24 @@ research; companion SSRN paper "Prompted to Start"). Every company gets:
 - a **RAD score** (Resource-Adjusted AI Dependency: how dependent/defensible the
   company is vs. foundation-model providers).
 
-The pipeline enriches Crunchbase rows with live website evidence, then classifies
-them with an LLM via the OpenAI Batch API. There are **three strands**, all
-feeding the *same* classifier:
+The pipeline enriches Crunchbase rows with website evidence, then classifies
+them with an LLM. Production classification is `python -m two_pass_classifier`
+only. It calls the OpenAI Responses API in two passes. The landed live file
+was written by a retired batch classifier. Historical and dead-company classify
+commands exit 2.
 
 1. **Live** (built, run): classify companies on today's websites.
-2. **Historical / wayback** (infra built, paid extract not run): re-run the
-   *unchanged* classifier on each company's **March-2023 (GPT-4 launch)** homepage
-   from the Internet Archive, to measure how AI messaging shifted.
+2. **Historical / wayback** (infra built, paid extract not run): recover each
+   company's **March-2023 (GPT-4 launch)** homepage from the Internet Archive.
+   The classify command exits 2.
 3. **Survivorship-bias** (extract complete, classify/merge not landed): recover
-   **pre-death** snapshots for the ~22k companies Tavily couldn't extract, classify
-   them, and merge back so the dataset isn't biased toward survivors.
+   **pre-death** snapshots for the ~22k companies Tavily couldn't extract.
+   The classify command exits 2. Merge is not landed.
 
-**Core invariant:** `python -m single_pass_classifier` consumes the stable
-`CLASSIFIER_INPUT_COLUMNS` contract. Each strand is just a different way to
-produce `website_evidence`; the classifier and taxonomy never change. The only
-thing that differs across strands is the evidence.
+**Core invariant:** production classification reads the source columns in
+`two_pass_classifier/input_contract.py`. Each strand is a different way to
+produce `website_evidence`. The taxonomy does not change between strands. The
+only thing that differs across strands is the evidence.
 
 ## Status / roadmap
 
@@ -60,7 +62,7 @@ stays local. Implementation notes that used to live under `.cursor/plans/` are i
 
 ## Tech stack
 
-Python ≥3.11 · `openai` (Responses + Batch API) · `pandas` · `pydantic` (structured
+Python ≥3.11 · `openai` (Responses API) · `pandas` · `pydantic` (structured
 output) · `tiktoken` (pre-flight cost) · `tenacity` (retries) · `rich` (terminal
 UI) · `python-dotenv`. Tavily HTTP API for web crawl/extract (stdlib `urllib`).
 Internet Archive CDX API for snapshot discovery. Tests: `pytest`. The
@@ -73,12 +75,12 @@ proportion tests), installed via the `analysis` extra.
 LIVE strand
 data/master_csv.csv ──python -m tavily_crawler liveness──▶ website_alive set in place
         └──python -m tavily_crawler crawl──▶ outputs/tavilycrawl/processed/classifier_input.csv
-                └──python -m single_pass_classifier──▶ outputs/production_csvs/production_classifications.csv
+                └──python -m two_pass_classifier──▶ outputs/two_pass_classifier/runs/<run>/classifications.csv
 
-HISTORICAL strand (self-contained recovery, namespaced V1 bridge)
+HISTORICAL strand (self-contained recovery; classify command exits 2)
 coverage_full.csv ──build_targets.py──▶ scrape_targets.csv
         └──run_extract.py (Tavily /extract on archive URLs)──▶ outputs/raw/snapshots.jsonl
-                └──build_classifier_input_2023.py──▶ classifier_input_2023.csv ──▶ python -m wayback_machine.classify_2023 (CLASSIFY_NS=wayback_2023)
+                └──build_classifier_input_2023.py──▶ classifier_input_2023.csv ──▶ python -m wayback_machine.classify_2023 (exits 2)
 
 SURVIVORSHIP strand (frozen; GO = archive crawl matching the live cohort)
 classifier_input.csv (empty-evidence rows) ──build_not_found_cohort.py──▶ not_found_cohort.csv
@@ -86,22 +88,21 @@ classifier_input.csv (empty-evidence rows) ──build_not_found_cohort.py──
  └──build_targets_dead.py──▶ scrape_targets_dead.csv (if_ snapshot URL + per-company scope)
  └──run_extract_dead.py (Tavily /extract on pre-death snapshot)──▶ scrape_processed_dead.csv
  └──build_classifier_input_dead.py──▶ classifier_input_dead.csv
- └──classify_dead.py run (single_pass_classifier under CLASSIFY_NS=wayback_dead)──▶ outputs/wayback_dead/wayback_dead_classifications.csv
+ └──classify_dead.py (exits 2; batch classifier removed)
  └──merge_survivorship.py──▶ outputs/wayback_dead/survivorship_corrected.csv
  └──build_v1_alive_dead_dashboard.py (evidence-only alive-vs-dead, 4-act survivorship story)──▶ data visualization/01_Presentation_Materials/v1_alive_dead_cohort.html
 
 ```
 
-`single_pass_classifier` is a state machine: `prepare → submit → download` (or
-`run` for all three), with `status`, `retry`, `merge`, and `test`. Every stage
-reads a checkpoint and skips finished work, so a 44k-row run is fully resumable.
+`two_pass_classifier` is the only classifier. A full run needs a matching
+10-row smoke. `events.jsonl` is the resume authority. The batch classifier
+that wrote `outputs/production_csvs/production_classifications.csv` was removed.
 
 ## Repository layout
 
 ### Root
 | Path | Purpose |
 |------|---------|
-| `single_pass_classifier/` | Legacy V1 one-pass classifier application and `python -m single_pass_classifier` CLI |
 | `tavily_crawler/` | Live liveness and Tavily crawl application and `python -m tavily_crawler` CLI |
 | `two_pass_classifier/` | Production V2 application: immutable manifest, offline cost preview, 10-row smoke gate, async Responses runner, status/resume/retry, confidence, professor exporter |
 | `README.md` | Public-facing writeup (taxonomy + pipeline narrative + mermaid diagrams) |
@@ -109,25 +110,6 @@ reads a checkpoint and skips finished work, so a 44k-row run is fully resumable.
 | `pyproject.toml` | Dependencies + pytest config |
 | `AGENTS.md` | This file |
 | `.cursor/skills/` | Four committed repo skills: `portfolio-git-messages`, `git-commit-batch-plan`, `code-structure`, `clean-my-repo` |
-
-### `single_pass_classifier/` (legacy V1 classifier)
-| File | Responsibility |
-|------|----------------|
-| `cli.py` / `__main__.py` | Canonical V1 CLI (`prepare/submit/status/download/retry/merge/test/run`) |
-| `config.py` | **Single source of truth** for tunables: `DEFAULT_MODEL` (`gpt-5.4-nano`), Tier-5 rate limits, batch sizing, token/cost constants. No magic numbers elsewhere. |
-| `paths.py` | All filesystem paths for generated artifacts. `CLASSIFY_NS` env (set before import) reroutes batch state + output CSV under `outputs/<ns>/` for isolated runs (e.g. survivorship) |
-| `input_contract.py` | Stable classifier input columns, duplicated from the crawler and guarded by a parity test |
-| `schema.py` | `ClassificationResult` Pydantic model (11 fields); auto-generates the JSON schema injected into every request |
-| `formatter.py` | Maps a CSV row → user message; builds `custom_id` |
-| `builder.py` | Writes JSONL batch files (identical cacheable prefix + 1 user msg/line); loads system prompt |
-| `prompts/` | V1 one-pass prompt (`system_classifier_prompt.txt`) |
-| `tokens.py` | tiktoken token counting + `MODEL_PRICING`; powers `--dry-run` cost reports |
-| `submitter.py` | Fault-tolerant file upload + batch create (tenacity backoff); `BillingLimitError` |
-| `monitor.py` | Async concurrent batch monitor; sliding-window queue-pressure control (stays under 15B token queue) |
-| `downloader.py` | Downloads results, matches to inputs by `custom_id` (never positional), appends to production CSV, tracks cache hits |
-| `merger.py` | Distribution + cost report (rich tables); no separate merge needed |
-| `state.py` | `state.json` checkpoint (`BatchRecord` lifecycle); atomic writes; resume |
-| `logger.py` | Logging setup |
 
 ### `tavily_crawler/` (live website enrichment)
 | File | Responsibility |
@@ -140,21 +122,16 @@ reads a checkpoint and skips finished work, so a 44k-row run is fully resumable.
 | `crawl_cli.py` | Crawl flags and command adapter |
 | `liveness.py` | Parallel homepage probe and `website_alive` updater |
 
-### `scripts/` (supporting utilities)
-| File | Purpose |
-|------|---------|
-| `smoke_test_logprobs.py` | Paid diagnostic for Responses logprobs and the V1 structured-output schema |
-
-
-### `two_pass_classifier/` (production V2)
+### `two_pass_classifier/` (production classifier)
 | File | Responsibility |
 |------|----------------|
-| `cli.py` / `__main__.py` | Canonical V2 CLI (`build-manifest`, `cost-preview`, `smoke`, `run`, `status`, `resume`, `retry`) with lazy paid-key loading |
+| `cli.py` / `__main__.py` | Canonical CLI (`build-manifest`, `cost-preview`, `smoke`, `run`, `status`, `resume`, `retry`) with lazy paid-key loading |
+| `api_key.py` | Paid-call key load from the environment or `keys/openai.env`. Import does not require a key |
 | `README.md` | Beginner run order and load-bearing flags for `python -m two_pass_classifier` |
 | `config.py` | Supported models and locked defaults (`gpt-5.6-luna`, Pass A effort `none`, Pass B effort `low`, Pass A `top_logprobs=5`) |
 | `schema.py` | Strict family-specific Pydantic contracts with 100-word reasoning and critique limits |
 | `prompts/` | Single production prompt source for Pass A/B (moved out of root `prompts/`) |
-| `formatter.py` / `request_builder.py` | Pass-specific model messages, strict Responses request bodies, cache routes, token reservations, request fingerprints |
+| `formatter.py` / `request_builder.py` | User message, custom id, and character cap, plus strict Responses request bodies, cache routes, token reservations, request fingerprints |
 | `input_contract.py` / `cohort.py` | Stable source/model-visible fields and deterministic PRE-GENAI vs GENAI-ERA assignment |
 | `manifest.py` | Evidence-only live+dead JSONL manifest; joins `company_alive` / `website_snapshot_date` at build time |
 | `confidence.py` | Offline sampled-token confidence (censored-opponent midpoint) |
@@ -181,7 +158,7 @@ reads a checkpoint and skips finished work, so a 44k-row run is fully resumable.
 | `targets_dead.py` | **(survivorship)** Stage B: `death_coverage.csv` → `scrape_targets_dead.csv` (emits `if_` crawl URL + per-company `select_paths` scope; no founded cutoff) |
 | `extract_dead.py` | **(survivorship)** Stage C: resumable, budget-capped Tavily `/extract` over pre-death `if_`/`id_` snapshots; reuses `extract.py`'s reliability harness + failure-reason instrumentation (rate_limited vs no_archive_content); writes to the crawl-era artifact names to preserve resume state |
 | `classifier_input.py` | Stage D: master metadata + 2023 evidence → `classifier_input_2023.csv` (reused by the dead strand) |
-| `classify_2023.py` | **(historical)** Importable V1 wrapper that binds `CLASSIFY_NS=wayback_2023` before classifier imports and supplies the March-2023 input by default |
+| `classify_2023.py` | **(historical)** Exits 2. The batch classifier was removed. Production classification is `python -m two_pass_classifier` |
 
 ### `wayback_machine/scripts/` — thin CLIs
 | File | Purpose |
@@ -200,7 +177,7 @@ reads a checkpoint and skips finished work, so a 44k-row run is fully resumable.
 | `build_targets_dead.py` | **(survivorship)** CLI for `targets_dead.py` |
 | `run_extract_dead.py` | **(survivorship, paid)** CLI for the dead-cohort extract engine (`extract_dead.run_extract_dead`); wrap in `caffeinate -ims` outside the sandbox |
 | `build_classifier_input_dead.py` | **(survivorship)** CLI: dead evidence → `classifier_input_dead.csv` |
-| `classify_dead.py` | **(survivorship)** Sets `CLASSIFY_NS=wayback_dead` then delegates to `single_pass_classifier.cli.main()` in an isolated workspace |
+| `classify_dead.py` | **(survivorship)** Exits 2. The batch classifier was removed. Production classification is `python -m two_pass_classifier` |
 | `merge_survivorship.py` | **(survivorship)** Stage F: overlay dead verdicts onto `production_classifications.csv`, tag `evidence_source`, write `survivorship_corrected.csv` + before/after summary |
 | `summarize_crawl_failures.py` | **(survivorship)** Offline (stdlib-only, no keys) breakdown of `crawl_dead.jsonl` by `failure_reason` (rate_limited / no_archive_content / transient / network / legacy_empty) |
 
@@ -230,7 +207,6 @@ reads a checkpoint and skips finished work, so a 44k-row run is fully resumable.
 | `data visualization/02_Analysis_Code/build_v2_alive_dead_dashboard.py` | V2 alive-vs-dead dashboard on the professor CSV (`outputs/two_pass_classifier/production_classifications.csv`); three confidence explainers; consolidated survivorship charts; writes `v2_alive_dead_cohort.html` |
 | `data visualization/02_Analysis_Code/build_eval_dashboard.py` | Classifier Eval Suite (flat enterprise SPA, three tabs): Pipeline robustness (checks panel), Model benchmarks (leaderboard + cost-ladder popover + Pareto + latency), Confidence correctness correlation (reliability diagram, per-model ECE, selective curves). Shared filter shell (chips + search) on benchmarks and confidence tabs. Header run-instance card names the run (synthetic on the fixture, run date and time on real loads). Defaults to mock fixture; `--runs`/`--scored` for real runs. Writes a self-contained `eval_dashboard.html` (Plotly inlined from `vendor/plotly-2.35.2.min.js`, no CDN) via `write_dashboard`, which archives real runs to `eval_instances/` automatically (mock builds need `--save-instance`). |
 | `data visualization/02_Analysis_Code/vendor/plotly-2.35.2.min.js` | Vendored Plotly for offline/email-safe dashboard HTML (inlined at build time) |
-| `single_pass_classifier/tests/` | V1 schema, formatter, token, and cross-package input-contract tests |
 | `tavily_crawler/tests/` | Live enrichment and crawl reliability tests |
 | `two_pass_classifier/tests/` | V2 contracts plus async runner, journal, rate-control, retry, resume, lock, and export-gating tests |
 | `wayback_machine/tests/` | pytest for wayback (golden cleaner, cohort, state, config, budget, probe) |
@@ -242,12 +218,11 @@ reads a checkpoint and skips finished work, so a 44k-row run is fully resumable.
 | Artifact | What it is |
 |----------|-----------|
 | `data/master_csv.csv` | 44,387 companies — static Crunchbase metadata + `website_alive`. The base everything joins against. |
-| `outputs/tavilycrawl/processed/classifier_input.csv` | master + live `website_evidence`. **Default input to `single_pass_classifier`.** |
+| `outputs/tavilycrawl/processed/classifier_input.csv` | master + live `website_evidence`. Live input to the production manifest. |
 | `outputs/two_pass_classifier/manifests/manifest_<sha256>.jsonl` | Immutable V2 evidence-only live+dead input; header stores measured source counts and raw source hashes |
 | `outputs/two_pass_classifier/runs/<run>/events.jsonl` | Sole V2 resume authority (attempts, Pass A checkpoints, completed companies, raw responses). Derived CSV/JSON must never decide which requests run |
 | `outputs/two_pass_classifier/runs/<run>/classifications.csv` | Atomic exact 18-column V2 professor artifact, created only when every manifest row is complete |
-| `outputs/production_csvs/production_classifications.csv` | 44,387 classified rows (the live output) |
-| `outputs/batch_data/state.json` | classify resume checkpoint |
+| `outputs/production_csvs/production_classifications.csv` | 44,387 classified rows from the retired batch run |
 | `wayback_machine/data/coverage_full.csv` | Mar-2023 coverage probe over the 22,032 survivors |
 | `wayback_machine/data/not_found_cohort.csv` | ~22,002 companies Tavily couldn't extract (survivorship target) |
 | `wayback_machine/data/death_coverage.csv` | Death-anchored probe output (complete: 22,002 rows, 19,044 `ok`) |
@@ -256,48 +231,28 @@ reads a checkpoint and skips finished work, so a 44k-row run is fully resumable.
 
 ## Domain model
 
-`ClassificationResult` (11 fields, `single_pass_classifier/schema.py`):
-`CompanyID`, `CompanyName`,
-`ai_native` (0/1), `subclass` (1A–1G / 0A–0C), `rad_score` (RAD-H/M/L/NA),
-`cohort` (PRE-GENAI / GENAI-ERA, split at GPT-4 launch 2023-03-14),
-`conf_classification` (1–5), `conf_rad` (1–5 or null), `reasons_3_points`,
-`sources_used`, `verification_critique`.
-
-V2 professor artifact (contracts in `two_pass_classifier/exporter.py`) is exactly 18
+The production artifact (contracts in `two_pass_classifier/exporter.py`) is exactly 18
 analytical columns: `company_id`, `company_name`, `cohort`, `company_alive`,
 `website_snapshot_date`, then classification/confidence/reasoning fields.
 `company_alive` is evidence-strand yes/no (live vs archive/dead), not the HTTP
 probe `website_alive`. Snapshot date is frozen into the immutable manifest at build.
+Cohort is PRE-GENAI or GENAI-ERA, split at the GPT-4 launch on 2023-03-14.
+The retired batch classifier wrote an 11-field row. That package is gone.
 
 
 ## Development commands
 
-**`OPENAI_API_KEY` is required at V1 classifier import time.**
-`single_pass_classifier/config.py` reads `os.environ["OPENAI_API_KEY"]`; the
-classifier tests pull that in, so **`pytest` fails to collect if the variable is
-unset**. A placeholder
-(e.g. `OPENAI_API_KEY=placeholder`) is enough for the full test suite and offline
-stages (`prepare`, `prepare --dry-run`, `status`, `merge`) — no API calls.
-Real keys are only needed for paid stages (`submit`, `run`, `download`, `retry`,
-`test`) and Tavily enrichment. Keys load from `keys/openai.env` / `keys/tavily.env`
-when present; env vars take precedence.
-
-V2 (`python -m two_pass_classifier`) loads the paid key lazily:
-`build-manifest`, `cost-preview`, and `status` do not need a key, while paid
-commands (`smoke`, `run`, `resume`, `retry`) load it only after confirmation.
+**`pytest` collects with `OPENAI_API_KEY` unset.** Paid commands load a real
+key from the environment or `keys/openai.env` and reject placeholders.
+`build-manifest`, `cost-preview`, and `status` do not need a key. Paid
+commands (`smoke`, `run`, `resume`, `retry`) load the key only after
+confirmation. Tavily enrichment still needs `keys/tavily.env`.
 
 ```bash
 pip install -e ".[dev]"            # install with dev (pytest) extras
 pytest                             # all offline test suites
-pytest single_pass_classifier/tests tavily_crawler/tests
-pytest two_pass_classifier/tests -q # V2 contracts, runner, CLI, and artifacts
-pytest wayback_machine/tests       # wayback tests (incl. golden cleaner)
-
-
-python -m single_pass_classifier prepare --dry-run          # cost plan, no API calls
-python -m single_pass_classifier run                         # prepare → submit → download (full)
-python -m single_pass_classifier run --data path/to/live_input.csv  # classify another live input
-python -m single_pass_classifier test --company-name Stripe  # one company, flex pricing
+pytest two_pass_classifier/tests -q # contracts, runner, CLI, and artifacts
+pytest tavily_crawler/tests wayback_machine/tests
 
 python -m two_pass_classifier build-manifest       # validate and freeze live+dead input
 python -m two_pass_classifier cost-preview         # count tokens and price offline
@@ -309,10 +264,11 @@ python -m two_pass_classifier retry <run_id>       # append retry events; prints
 
 python -m tavily_crawler liveness              # set website_alive
 python -m tavily_crawler crawl                 # live homepage crawl
-python -m wayback_machine.classify_2023 run    # isolated March-2023 V1 classification
-# wayback run order: see wayback_machine/README.md
+python -m wayback_machine.classify_2023        # exits 2; batch classifier removed
+python wayback_machine/scripts/classify_dead.py # exits 2; batch classifier removed
+# wayback extract order: see wayback_machine/README.md
 
-pytest evals/tests -q                       # full eval harness (use OPENAI_API_KEY=placeholder)
+pytest evals/tests -q                       # full eval harness, no API key required at import
 pytest evals/tests/test_dashboard_metrics.py   # dashboard metrics (no OpenAI key)
 # Paid matrix (beginner path). Key loads from keys/openai.env automatically.
 python -m evals cost-preview                    # per-config + total $ estimate (no API calls)
@@ -335,8 +291,7 @@ python -m evals score <run_id> --confidence-from-raw --allow-missing-confidence 
 
 ## Conventions & invariants (don't break these)
 
-- **Classifier tunables live in `single_pass_classifier/config.py`; Wayback tunables live in `wayback_machine/config.py`.**
-- **V2 tunables live in `two_pass_classifier/config.py`; its prompts live only in `two_pass_classifier/prompts/`.**
+- **Classifier tunables live in `two_pass_classifier/config.py`; its prompts live only in `two_pass_classifier/prompts/`. Wayback tunables live in `wayback_machine/config.py`.**
 - **`evals` must import production classifier contracts from `two_pass_classifier`; it may own research orchestration and metrics, but never duplicate classifier behavior.**
 - **V2 `events.jsonl` is the sole resume authority.** Derived JSON and CSV files must never decide which requests run.
 - **A V2 full run requires a successful 10-row smoke with the same parent manifest and semantic request fingerprint.** Smoke outputs are never reused as full-run classifications.
@@ -345,7 +300,7 @@ python -m evals score <run_id> --confidence-from-raw --allow-missing-confidence 
 - **Match results by `custom_id`**, never by position (batch order is not guaranteed).
 - **`wayback_machine/evidence.py` must stay behavior-identical** to `tavily_crawler/website_evidence.py`. If you change the live cleaner, re-vendor and run `pytest wayback_machine/tests`.
 - **Only `website_evidence` may differ** between strands fed to the classifier — that's the whole fair-comparison design.
-- **Historical V1 classification must use a namespace wrapper.** Use `python -m wayback_machine.classify_2023`; never point the unnamespaced live V1 CLI at historical input.
+- **Historical and dead-company classify commands exit 2.** They do not classify. Production classification is `python -m two_pass_classifier`. Do not resume paid crawl or extract.
 - **Network/paid stages run OUTSIDE the Cursor sandbox** (Tavily crawl/extract, CDX probes, OpenAI). Wrap long runs in `caffeinate -ims` and/or `tmux`.
 - **CDX is hard-capped at 60 req/min per IP**; exceeding it risks a 1-hour IP ban. Pace via `cdx.py`'s shared limiter; never raise rpm above ~58.
 - `data/`, `outputs/`, `keys/` are git-ignored; `data/` & `outputs/` are also not indexed.
@@ -354,20 +309,17 @@ python -m evals score <run_id> --confidence-from-raw --allow-missing-confidence 
 
 | Task | Start here |
 |------|-----------|
-| Change V1 taxonomy / output fields | `single_pass_classifier/schema.py` (+ `single_pass_classifier/prompts/system_classifier_prompt.txt`) |
-| Change V1 classification instructions | `single_pass_classifier/prompts/system_classifier_prompt.txt` |
-| Tune V1 cost / rate limits / batch size | `single_pass_classifier/config.py` |
-| Change V1 row → prompt mapping | `single_pass_classifier/formatter.py` |
-| Change V2 execution, resume, retry, or rate control | `two_pass_classifier/runner.py` + `journal.py` + `rate_control.py` + `request_builder.py` |
-| Change V2 CLI, smoke gate, cost preview, or status | `two_pass_classifier/cli.py` + `workflow.py` + `costing.py` + `status.py` |
-| Change V2 prompt/schema contracts | `two_pass_classifier/prompts/` + `two_pass_classifier/schema.py`; rerun V2 and affected eval tests |
-| Change V2 manifest/export contract | `two_pass_classifier/manifest.py` + `two_pass_classifier/exporter.py` |
+| Change taxonomy / output fields | `two_pass_classifier/schema.py` + `two_pass_classifier/prompts/` |
+| Change the company row shown to the model | `two_pass_classifier/formatter.py` |
+| Change execution, resume, retry, or rate control | `two_pass_classifier/runner.py` + `journal.py` + `rate_control.py` + `request_builder.py` |
+| Change CLI, smoke gate, cost preview, or status | `two_pass_classifier/cli.py` + `workflow.py` + `costing.py` + `status.py` |
+| Change prompt/schema contracts | `two_pass_classifier/prompts/` + `two_pass_classifier/schema.py`; rerun two-pass and affected eval tests |
+| Change manifest/export contract | `two_pass_classifier/manifest.py` + `two_pass_classifier/exporter.py` |
 | Change evidence cleaning | `tavily_crawler/website_evidence.py` → re-vendor `wayback_machine/evidence.py` → run golden test |
-| Add/modify a V1 classify subcommand | `single_pass_classifier/cli.py` |
 | Live website scraping behavior | `tavily_crawler/crawl.py` |
 | Historical archive scraping | `wayback_machine/extract.py` + `scripts/run_extract.py` |
 | Survivorship death probe | `wayback_machine/scripts/probe_death_coverage.py` + `wayback_machine/cdx.py` |
-| Survivorship extract→classify→merge | `wayback_machine/extract_dead.py` + `scripts/{build_targets_dead,run_extract_dead,build_classifier_input_dead,classify_dead,merge_survivorship}.py` |
+| Survivorship extract→merge | `wayback_machine/extract_dead.py` + `scripts/{build_targets_dead,run_extract_dead,build_classifier_input_dead,merge_survivorship}.py` (`classify_dead.py` exits 2) |
 | Dashboards | `data visualization/02_Analysis_Code/` |
 | Alive-vs-dead dashboard / survivorship stats | `survivorship_analysis.py` (compute) + `build_v1_alive_dead_dashboard.py` (V1) or `build_v2_alive_dead_dashboard.py` (V2 professor CSV); rebuild V2 after the final production CSV lands |
 | Eval dashboard (Classifier Eval Suite) | `evals/dashboard_metrics.py` (metrics + robustness checks) + `build_eval_dashboard.py` (three tabs: robustness / benchmarks / confidence; mock fixture until paid matrix runs; `--runs` for real data) |

@@ -257,7 +257,10 @@ def test_paid_command_loads_key_lazily_after_confirmation(
         dead_count=5,
     )
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-    monkeypatch.setattr(cli, "dotenv_values", lambda path: {})
+    monkeypatch.setattr(
+        "two_pass_classifier.api_key.dotenv_values",
+        lambda path: {},
+    )
 
     code, output = _invoke(
         [
@@ -606,7 +609,7 @@ def test_formatter_helper_drift_invalidates_smoke_approval(
 
     def drifted(module):
         source = original(module)
-        if module.__name__ == "single_pass_classifier.formatter":
+        if module.__name__ == "two_pass_classifier.formatter":
             return source + b"\n# changed helper\n"
         return source
 
@@ -664,7 +667,7 @@ def test_formatter_helper_drift_rejects_resume_before_api_client(
 
     def drifted(module):
         source = original(module)
-        if module.__name__ == "single_pass_classifier.formatter":
+        if module.__name__ == "two_pass_classifier.formatter":
             return source + b"\n# changed helper\n"
         return source
 
