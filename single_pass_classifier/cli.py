@@ -362,7 +362,7 @@ def _add_common_args(parser: argparse.ArgumentParser) -> None:
     )
     parser.add_argument(
         "--data", default=None,
-        help="Path to input CSV (default: outputs/tavilycrawl/classifier_input.csv)",
+        help="Path to input CSV (default: outputs/tavilycrawl/processed/classifier_input.csv)",
     )
 
 
@@ -418,7 +418,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Merge batch outputs into final CSV and print distribution report",
     )
     p.add_argument("--output", default=None,
-                   help="Output CSV path (default: outputs/production_csvs/classified_startups_tavily.csv)")
+                   help="Output CSV path (default: outputs/production_csvs/production_classifications.csv)")
     p.set_defaults(func=_cmd_merge)
 
     # test

@@ -6,7 +6,7 @@ replaces an exhaustive codebase search. It is auto-injected into every chat.
 If you change the repo's structure, architecture, data flow, commands, or
 status, **update this file in the same change**. See [Maintaining this file](#maintaining-this-file).
 
-Last updated: 2026-08-30 | Active branch: `chore/clean-my-repo` (portfolio cleanup; do not resume paid strands)
+Last updated: 2026-10-06 | Active branch: `cursor/portfolio-hygiene-docs-9aae` (portfolio cleanup; do not resume paid strands)
 
 ---
 
@@ -20,22 +20,27 @@ research; companion SSRN paper "Prompted to Start"). Every company gets:
 - a **RAD score** (Resource-Adjusted AI Dependency: how dependent/defensible the
   company is vs. foundation-model providers).
 
-The pipeline enriches Crunchbase rows with live website evidence, then classifies
-them with an LLM via the OpenAI Batch API. There are **three strands**, all
-feeding the *same* classifier:
+The pipeline enriches Crunchbase rows with website evidence, then classifies
+them with an LLM. There are two classifiers and three evidence strands.
+
+`python -m two_pass_classifier` is the production classifier. It calls the
+OpenAI Responses API in two passes. `python -m single_pass_classifier` is the
+legacy batch classifier. It wrote the landed live file. Historical and
+dead-company runs still use it, under a separate output folder, so they cannot
+overwrite that file. The production runner still builds each user message with
+the legacy formatter.
 
 1. **Live** (built, run): classify companies on today's websites.
 2. **Historical / wayback** (infra built, paid extract not run): re-run the
-   *unchanged* classifier on each company's **March-2023 (GPT-4 launch)** homepage
+   legacy classifier on each company's **March-2023 (GPT-4 launch)** homepage
    from the Internet Archive, to measure how AI messaging shifted.
 3. **Survivorship-bias** (extract complete, classify/merge not landed): recover
    **pre-death** snapshots for the ~22k companies Tavily couldn't extract, classify
    them, and merge back so the dataset isn't biased toward survivors.
 
-**Core invariant:** `python -m single_pass_classifier` consumes the stable
-`CLASSIFIER_INPUT_COLUMNS` contract. Each strand is just a different way to
-produce `website_evidence`; the classifier and taxonomy never change. The only
-thing that differs across strands is the evidence.
+**Core invariant:** both classifiers consume the stable `CLASSIFIER_INPUT_COLUMNS`
+contract. Each strand is a different way to produce `website_evidence`. The
+taxonomy does not change between strands.
 
 ## Status / roadmap
 
@@ -196,7 +201,7 @@ reads a checkpoint and skips finished work, so a 44k-row run is fully resumable.
 | `build_not_found_cohort.py` | **(survivorship)** Build `not_found_cohort.csv` from empty-evidence rows |
 | `probe_death_coverage.py` | **(survivorship, active)** Death-anchored CDX probe → `death_coverage.csv` |
 | `run_probe_recovery.sh` | Shell helper to resume the recovery probe |
-| `summarize_death_coverage.py` | **(survivorship)** Aggregate `death_coverage.csv` → compact JSON shared by the findings canvas + `build_survivorship_dashboard.py` |
+| `summarize_death_coverage.py` | **(survivorship)** Aggregate `death_coverage.csv` to compact JSON for the coverage counts |
 | `build_targets_dead.py` | **(survivorship)** CLI for `targets_dead.py` |
 | `run_extract_dead.py` | **(survivorship, paid)** CLI for the dead-cohort extract engine (`extract_dead.run_extract_dead`); wrap in `caffeinate -ims` outside the sandbox |
 | `build_classifier_input_dead.py` | **(survivorship)** CLI: dead evidence → `classifier_input_dead.csv` |

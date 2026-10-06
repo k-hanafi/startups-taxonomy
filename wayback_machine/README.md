@@ -48,16 +48,16 @@ network and must run **outside the Cursor sandbox**.
 |-------|---------|------|
 | A. Discover (done) | `scripts/probe_coverage.py` → `scripts/summarize_coverage.py` | free |
 | B. Freeze targets | `python3 wayback_machine/scripts/build_targets.py` | free |
+| Spike (de-risk) | `python3 wayback_machine/scripts/spike_extract.py --n 50` | ~10 credits |
+| C. Extract | `python3 wayback_machine/scripts/run_extract.py` | paid |
+| D. Build input | `python3 wayback_machine/scripts/build_classifier_input_2023.py` | free |
+| E. Classify | `python -m wayback_machine.classify_2023 run` | paid |
 
 Stage B keeps a company only if it is **both** retrievable **and** existed at
 GPT-4 launch (`founded_date` ≤ `2023-03`, override with `--founded-cutoff`). The
 existence filter is not redundant: the probe picks the capture closest to March
 14 within Dec 2022 – Jun 2023, so a company founded mid-2023 could otherwise slip
 in via a later snapshot.
-| Spike (de-risk) | `python3 wayback_machine/scripts/spike_extract.py --n 50` | ~10 credits |
-| C. Extract | `python3 wayback_machine/scripts/run_extract.py` | paid |
-| D. Build input | `python3 wayback_machine/scripts/build_classifier_input_2023.py` | free |
-| E. Classify | `python -m wayback_machine.classify_2023 run` | paid |
 
 The Stage E wrapper sets `CLASSIFY_NS=wayback_2023` before any classifier
 imports. Its state and final CSV therefore stay under `outputs/wayback_2023/`
@@ -68,6 +68,25 @@ For the overnight extract, hold sleep with caffeinate (outside the sandbox):
 ```bash
 caffeinate -ims python3 wayback_machine/scripts/run_extract.py
 ```
+
+## Dead-company recovery
+
+These commands recover a pre-death homepage for companies the live crawl could
+not extract. They are frozen. Do not start the paid steps without a new brief.
+
+| Stage | Command | Cost |
+|-------|---------|------|
+| Cohort | `python3 wayback_machine/scripts/build_not_found_cohort.py` | free |
+| Death probe | `python3 wayback_machine/scripts/probe_death_coverage.py` | free |
+| Summarize probe | `python3 wayback_machine/scripts/summarize_death_coverage.py` | free |
+| Targets | `python3 wayback_machine/scripts/build_targets_dead.py` | free |
+| Extract | `python3 wayback_machine/scripts/run_extract_dead.py` | paid |
+| Classifier input | `python3 wayback_machine/scripts/build_classifier_input_dead.py` | free |
+| Classify | `python3 wayback_machine/scripts/classify_dead.py run` | paid |
+| Merge | `python3 wayback_machine/scripts/merge_survivorship.py` | free |
+
+`classify_dead.py` sets `CLASSIFY_NS=wayback_dead` before the legacy classifier
+imports, so its CSV stays under `outputs/wayback_dead/`.
 
 ## Resumability & safety
 

@@ -14,8 +14,8 @@ This guide helps you set up this repository on your local machine to work alongs
 
 ```bash
 # If you haven't cloned yet:
-git clone https://github.com/k-hanafi/ai-startups-taxonomy-research.git
-cd ai-startups-taxonomy-research
+git clone https://github.com/k-hanafi/startups-taxonomy.git
+cd startups-taxonomy
 
 # Start on main (default branch)
 git checkout main
@@ -70,7 +70,9 @@ OPENAI_API_KEY=placeholder PYTHONPATH=. pytest wayback_machine/tests
 
 ### Understanding the Data Flow
 
-The repository has three strands, all feeding the same classifier:
+The repository has two classifiers and three evidence strands.
+
+`python -m two_pass_classifier` is the production classifier. `python -m single_pass_classifier` is the legacy batch classifier. Historical and dead-company runs still use the legacy one.
 
 1. **Live strand** (DONE): Classifies companies based on current websites
 2. **Historical strand** (FROZEN): Re-classifies using March 2023 Internet Archive snapshots (infra built, paid extract not run)
@@ -81,22 +83,23 @@ The repository has three strands, all feeding the same classifier:
 ### Key Commands
 
 ```bash
-# Run live pipeline tests
-pytest
+# Tests. placeholder is a fake key so the legacy package can load.
+OPENAI_API_KEY=placeholder pytest
 
-# Run wayback machine tests
-pytest wayback_machine/tests
+# Production classifier. These commands make no API calls.
+# Default inputs are local files and are not in git.
+python -m two_pass_classifier build-manifest
+python -m two_pass_classifier cost-preview
 
-# Classification pipeline (requires real API key)
-python -m single_pass_classifier prepare --dry-run  # Cost estimate
-python -m single_pass_classifier run                # Full run
-python -m single_pass_classifier status             # Check progress
+# Legacy batch classifier. Paid commands need a real key.
+python -m single_pass_classifier prepare --dry-run
+python -m single_pass_classifier status
 
 # Live website enrichment
 python -m tavily_crawler liveness
 python -m tavily_crawler crawl
 
-# Survivorship pipeline commands (see wayback_machine/README.md)
+# Dead-company recovery (see wayback_machine/README.md)
 python wayback_machine/scripts/probe_death_coverage.py
 python wayback_machine/scripts/build_targets_dead.py
 python wayback_machine/scripts/run_extract_dead.py
@@ -245,7 +248,7 @@ cat .gitignore
 git remote -v
 
 # If no remote, add it
-git remote add origin https://github.com/k-hanafi/ai-startups-taxonomy-research.git
+git remote add origin https://github.com/k-hanafi/startups-taxonomy.git
 
 # Fetch all branches
 git fetch origin
@@ -274,10 +277,10 @@ After setup:
 
 1. Read `AGENTS.md` thoroughly
 2. Run `pytest` to verify everything works
-3. Explore the V1 app from `single_pass_classifier/cli.py`
+3. Read `two_pass_classifier/README.md` for the production command order
 4. Check what the cloud agent has been working on: `git log --oneline -20`
 5. Review current branch status: `git status`
 
 ---
 
-**Remember:** This repository has three strands (live, historical, survivorship) that all feed the same classifier. The only thing that differs is the `website_evidence`. Keep this invariant when making changes.
+**Remember:** Live, historical, and survivorship strands differ by `website_evidence`. The production classifier is `python -m two_pass_classifier`. The legacy batch classifier remains for historical runs and for the user message the production runner sends.
